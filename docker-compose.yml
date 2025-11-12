@@ -1,0 +1,56 @@
+version: '3.8'
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    volumes:
+      - mongo-data:/data/db
+
+  redis:
+    image: redis:7.2
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+  auth:
+    build: ./backend/auth
+    container_name: auth
+    restart: always
+    env_file:
+      - ./backend/auth/.env
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongo
+
+  chat:
+    build: ./backend/chat
+    container_name: chat
+    restart: always
+    env_file:
+      - ./backend/chat/.env
+    ports:
+      - "5001:5001"
+    depends_on:
+      - mongo
+      - redis
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - auth
+      - chat
+
+volumes:
+  mongo-data:
