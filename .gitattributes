@@ -1,0 +1,4 @@
+* text=auto
+
+# Ignore node_modules from Git
+node_modules/
