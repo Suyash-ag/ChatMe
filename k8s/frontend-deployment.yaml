@@ -1,3 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+data:
+  REACT_APP_AUTH_API_URL: "http://auth:5000/auth"
+  REACT_APP_CHAT_API_URL: "http://chat:5001"
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,9 +22,19 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: frontend:latest
+        image: YOUR_DOCKERHUB_USERNAME/chatme-frontend:latest
         ports:
-        - containerPort: 3000
+        - containerPort: 80
+        envFrom:
+        - configMapRef:
+            name: frontend-config
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
       restartPolicy: Always
 ---
 apiVersion: v1
@@ -27,6 +45,25 @@ spec:
   selector:
     app: frontend
   ports:
-    - protocol: TCP
-      port: 3000
-      targetPort: 3000
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
