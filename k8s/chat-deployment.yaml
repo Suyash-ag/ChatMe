@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: chat-config
 data:
-  MONGO_URI: "mongodb://mongo:27017/chat"
+  MONGO_URI: "mongodb://root:example@mongo:27017/chat?authSource=admin"
   REDIS_URL: "redis://redis:6379"
   PORT: "5001"
   CORS_ORIGIN: "http://localhost:3000"
@@ -32,7 +32,8 @@ spec:
     spec:
       containers:
       - name: chat
-        image: YOUR_DOCKERHUB_USERNAME/chatme-chat:latest
+        image: suyashag/chatme-chat:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5001
         envFrom:

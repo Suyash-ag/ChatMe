@@ -3,10 +3,10 @@ kind: Ingress
 metadata:
   name: chatme-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   rules:
-  - host: chatme.local
+  - host: chatme.local  kubectl get svc -n ingress-nginx
     http:
       paths:
       - path: /auth(/|$)(.*)

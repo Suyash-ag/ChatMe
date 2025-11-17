@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   mongo:
     image: mongo:6.0
@@ -6,8 +5,19 @@ services:
     restart: always
     ports:
       - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=example
     volumes:
       - mongo-data:/data/db
+    networks:
+      - chatme-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   redis:
     image: redis:7.2
@@ -15,39 +25,65 @@ services:
     restart: always
     ports:
       - "6379:6379"
+    networks:
+      - chatme-network
 
   auth:
     build: ./backend/auth
     container_name: auth
     restart: always
-    env_file:
-      - ./backend/auth/.env
+    environment:
+      - PORT=5000
+      - MONGO_URI=mongodb://root:example@mongo:27017/auth?authSource=admin
+      - JWT_SECRET=supersecretkey-change-in-production
+      - CORS_ORIGIN=http://localhost:3000
     ports:
       - "5000:5000"
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
+    networks:
+      - chatme-network
 
   chat:
     build: ./backend/chat
     container_name: chat
     restart: always
-    env_file:
-      - ./backend/chat/.env
+    environment:
+      - PORT=5001
+      - MONGO_URI=mongodb://root:example@mongo:27017/chat?authSource=admin
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=supersecretkey-change-in-production
+      - CORS_ORIGIN=http://localhost:3000
     ports:
       - "5001:5001"
     depends_on:
-      - mongo
-      - redis
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - chatme-network
 
   frontend:
-    build: ./frontend
+    build: 
+      context: ./frontend
+      args:
+        REACT_APP_AUTH_API_URL: http://localhost:5000/auth
+        REACT_APP_CHAT_API_URL: http://localhost:5001
     container_name: frontend
     restart: always
     ports:
-      - "3000:3000"
+      - "3000:80"
     depends_on:
       - auth
       - chat
+    networks:
+      - chatme-network
 
 volumes:
   mongo-data:
+
+networks:
+  chatme-network:
+    driver: bridge

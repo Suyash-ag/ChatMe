@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 import '../App.css';
+import './Login.css';
 
 function Login() {
   const [username, setUsername] = useState('');
@@ -13,13 +14,17 @@ function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setMessage('');
     try {
-      const res = await axios.post(`${process.env.REACT_APP_AUTH_API_URL}/login`, { username, password });
+      const authUrl = process.env.REACT_APP_AUTH_API_URL || 'http://localhost:5000/auth';
+      const res = await axios.post(`${authUrl}/login`, { username, password });
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('username', username);
       navigate('/chat');
     } catch (err) {
-      setMessage(err.response?.data?.message || 'Error logging in');
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Error logging in. Please try again.';
+      setMessage(errorMessage);
+      console.error('Login error:', err);
     }
     setLoading(false);
   };
@@ -36,6 +41,7 @@ function Login() {
             onChange={e => setUsername(e.target.value)}
             required
             className="input"
+            disabled={loading}
           />
           <input
             type="password"
@@ -44,6 +50,7 @@ function Login() {
             onChange={e => setPassword(e.target.value)}
             required
             className="input"
+            disabled={loading}
           />
           <button type="submit" className="btn" disabled={loading}>
             {loading ? 'Logging in...' : 'Login'}

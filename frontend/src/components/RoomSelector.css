@@ -1,0 +1,95 @@
+.room-selector {
+  padding: 16px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.room-selector-form {
+  margin: 0;
+}
+
+.room-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.room-prefix {
+  position: absolute;
+  left: 16px;
+  color: #667eea;
+  font-weight: 600;
+  font-size: 18px;
+  z-index: 1;
+}
+
+.room-input {
+  width: 100%;
+  padding: 12px 16px 12px 40px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s;
+  background: #f7fafc;
+}
+
+.room-input:focus {
+  border-color: #667eea;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.popular-rooms {
+  margin-top: 12px;
+  animation: slideDown 0.2s ease-out;
+}
+
+.popular-rooms-label {
+  font-size: 12px;
+  color: #718096;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.popular-rooms-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.popular-room-tag {
+  padding: 6px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f7fafc;
+  color: #4a5568;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.popular-room-tag:hover {
+  background: #edf2f7;
+  border-color: #cbd5e0;
+  transform: translateY(-1px);
+}
+
+.popular-room-tag.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: transparent;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

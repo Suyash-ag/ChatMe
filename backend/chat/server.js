@@ -11,6 +11,12 @@ dotenv.config();
 
 const app = express();
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:3000', credentials: true }));
+app.use(express.json());
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'chat' });
+});
 
 const server = http.createServer(app);
 const io = socketio(server, {
@@ -30,7 +36,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 const redisPublisher = redis.createClient({ url: REDIS_URL });
 const redisSubscriber = redis.createClient({ url: REDIS_URL });
 
-// Connect Redis clients
+// Connect Redis clients with error handling
 Promise.all([
   redisPublisher.connect(),
   redisSubscriber.connect()
@@ -38,32 +44,69 @@ Promise.all([
   console.log('Redis clients connected');
 }).catch(err => {
   console.error('Redis connection error:', err);
+  process.exit(1);
+});
+
+// Handle Redis errors and reconnections
+redisPublisher.on('error', (err) => {
+  console.error('Redis publisher error:', err);
+});
+
+redisSubscriber.on('error', (err) => {
+  console.error('Redis subscriber error:', err);
+});
+
+redisPublisher.on('connect', () => {
+  console.log('Redis publisher connected');
+});
+
+redisSubscriber.on('connect', () => {
+  console.log('Redis subscriber connected');
 });
 
 // Track subscribed rooms
 const subscribedRooms = new Set();
 
+// Set up Redis message handler (this handles messages from other instances)
+redisSubscriber.on('message', (channel, message) => {
+  try {
+    const data = JSON.parse(message);
+    // Only broadcast if this message didn't originate from this instance
+    // (We'll add an instanceId to prevent duplicates)
+    if (!data.instanceId || data.instanceId !== process.env.INSTANCE_ID) {
+      io.to(channel).emit('chatMessage', { 
+        user: data.user, 
+        message: data.message, 
+        timestamp: data.timestamp 
+      });
+    }
+  } catch (err) {
+    console.error('Error parsing Redis message:', err);
+  }
+});
+
 // Function to subscribe to a room channel
 const subscribeToRoom = async (room) => {
   if (!subscribedRooms.has(room)) {
     subscribedRooms.add(room);
-    await redisSubscriber.subscribe(room, (message) => {
-      try {
-        const data = JSON.parse(message);
-        // Broadcast to all clients in this instance (excluding sender)
-        io.to(room).emit('chatMessage', { user: data.user, message: data.message, timestamp: data.timestamp });
-      } catch (err) {
-        console.error('Error parsing Redis message:', err);
-      }
-    });
+    await redisSubscriber.subscribe(room);
     console.log(`Subscribed to Redis channel: ${room}`);
   }
 };
 
+// Generate unique instance ID if not set
+if (!process.env.INSTANCE_ID) {
+  process.env.INSTANCE_ID = `instance-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
 // Subscribe to default room
 subscribeToRoom('general');
 
-mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+const mongoOptions = {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+};
+mongoose.connect(MONGO_URI, mongoOptions)
   .then(() => {
     console.log('MongoDB connected');
     server.listen(PORT, () => console.log(`Chat service running on port ${PORT}`));
@@ -88,9 +131,17 @@ io.use((socket, next) => {
 
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.username}`);
+  let currentRoom = 'general'; // Track current room
 
   socket.on('joinRoom', async (room) => {
+    // Leave previous room if different
+    if (currentRoom && currentRoom !== room) {
+      socket.leave(currentRoom);
+      console.log(`${socket.username} left room: ${currentRoom}`);
+    }
+    // Join new room
     socket.join(room);
+    currentRoom = room;
     await subscribeToRoom(room);
     console.log(`${socket.username} joined room: ${room}`);
   });
@@ -109,14 +160,26 @@ io.on('connection', (socket) => {
       const messageData = {
         user: user || socket.username,
         message,
-        timestamp: messageDoc.timestamp
+        timestamp: messageDoc.timestamp,
+        instanceId: process.env.INSTANCE_ID // Add instance ID to prevent duplicates
       };
 
       // Publish to Redis for other instances
       await redisPublisher.publish(room, JSON.stringify(messageData));
       
-      // Emit to clients in this instance (Redis subscriber will handle other instances)
-      io.to(room).emit('chatMessage', messageData);
+      // Emit to clients in this instance (excluding sender to prevent duplicate)
+      socket.to(room).emit('chatMessage', {
+        user: messageData.user,
+        message: messageData.message,
+        timestamp: messageData.timestamp
+      });
+      
+      // Also emit to sender (so they see their own message)
+      socket.emit('chatMessage', {
+        user: messageData.user,
+        message: messageData.message,
+        timestamp: messageData.timestamp
+      });
     } catch (err) {
       console.error('Error handling chat message:', err);
       socket.emit('error', { message: 'Failed to send message' });

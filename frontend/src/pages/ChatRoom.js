@@ -1,16 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
-import '../App.css';
 import { useNavigate } from 'react-router-dom';
+import MessageList from '../components/MessageList';
+import MessageInput from '../components/MessageInput';
+import ChatHeader from '../components/ChatHeader';
+import RoomSelector from '../components/RoomSelector';
+import ConnectionStatus from '../components/ConnectionStatus';
+import './ChatRoom.css';
 
 const SOCKET_URL = process.env.REACT_APP_CHAT_API_URL;
 
 function ChatRoom() {
   const [room, setRoom] = useState('general');
-  const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [user, setUser] = useState('');
   const [socket, setSocket] = useState(null);
+  const [connected, setConnected] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,20 +26,25 @@ function ChatRoom() {
       return;
     }
     setUser(username);
-    const newSocket = io(SOCKET_URL, {
-      auth: {
-        token: token
-      },
+    
+    const newSocket = io(SOCKET_URL || 'http://localhost:5001', {
+      auth: { token },
       transports: ['websocket', 'polling']
     });
     
     newSocket.on('connect', () => {
       console.log('Socket connected');
+      setConnected(true);
       newSocket.emit('joinRoom', room);
+    });
+    
+    newSocket.on('disconnect', () => {
+      setConnected(false);
     });
     
     newSocket.on('connect_error', (error) => {
       console.error('Socket connection error:', error);
+      setConnected(false);
       if (error.message.includes('Authentication')) {
         localStorage.removeItem('token');
         localStorage.removeItem('username');
@@ -47,43 +57,59 @@ function ChatRoom() {
     });
     
     setSocket(newSocket);
-    return () => newSocket.disconnect();
-  }, [room, navigate]);
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [navigate]);
 
-  const sendMessage = () => {
-    if (message && socket) {
-      socket.emit('chatMessage', { room, message, user });
-      setMessage('');
+  // Handle room changes
+  useEffect(() => {
+    if (socket && socket.connected) {
+      socket.emit('joinRoom', room);
+      setMessages([]);
+    }
+  }, [room, socket]);
+
+  const handleSendMessage = (messageText) => {
+    if (socket && socket.connected) {
+      socket.emit('chatMessage', { room, message: messageText, user });
     }
   };
 
+  const handleRoomChange = (newRoom) => {
+    setRoom(newRoom);
+  };
+
+  const handleLogout = () => {
+    if (socket) {
+      socket.disconnect();
+    }
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    navigate('/login');
+  };
+
   return (
-    <div className="page-container">
+    <div className="chatroom-page">
       <div className="chatroom-container">
-        <div className="chatroom-header">Chat Room: <span>{room}</span></div>
-        <input
-          type="text"
-          placeholder="Room"
-          value={room}
-          onChange={e => setRoom(e.target.value)}
-          className="chatroom-room-input input"
+        <ChatHeader 
+          room={room} 
+          currentUser={user}
+          onLogout={handleLogout}
         />
-        <div className="chatroom-messages">
-          {messages.map((msg, idx) => (
-            <div key={idx} className="chatroom-message">
-              <span className="chatroom-message-user">{msg.user}:</span> {msg.message}
-            </div>
-          ))}
+        <RoomSelector 
+          currentRoom={room}
+          onRoomChange={handleRoomChange}
+        />
+        <div className="chatroom-content">
+          <MessageList messages={messages} currentUser={user} />
         </div>
-        <div className="chatroom-input-row">
-          <input
-            type="text"
-            placeholder="Message"
-            value={message}
-            onChange={e => setMessage(e.target.value)}
-            className="chatroom-input"
+        <div className="chatroom-footer">
+          <ConnectionStatus connected={connected} />
+          <MessageInput 
+            onSend={handleSendMessage}
+            disabled={!connected}
           />
-          <button onClick={sendMessage} className="chatroom-send-btn">Send</button>
         </div>
       </div>
     </div>
