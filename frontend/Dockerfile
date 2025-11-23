@@ -4,6 +4,11 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
+# Build-time environment variables (can be overridden with --build-arg)
+ARG REACT_APP_AUTH_API_URL=http://localhost:5000/auth
+ARG REACT_APP_CHAT_API_URL=http://localhost:5001
+ENV REACT_APP_AUTH_API_URL=$REACT_APP_AUTH_API_URL
+ENV REACT_APP_CHAT_API_URL=$REACT_APP_CHAT_API_URL
 RUN npm run build
 
 # Production stage
