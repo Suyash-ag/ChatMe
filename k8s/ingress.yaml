@@ -5,8 +5,9 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
+  ingressClassName: nginx
   rules:
-  - host: chatme.local  kubectl get svc -n ingress-nginx
+  - host: chatme.local
     http:
       paths:
       - path: /auth(/|$)(.*)
@@ -23,7 +24,7 @@ spec:
             name: chat
             port:
               number: 5001
-      - path: /(.*)
+      - path: /()(.*)
         pathType: Prefix
         backend:
           service:
